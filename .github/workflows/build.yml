@@ -1,0 +1,21 @@
+name: Build Kernel A10s
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Build Kernel
+        uses: dabao1955/kernel_build_action@main
+        with:
+          kernel-url: https://github.com/kho447520-jpg/android_kernel_samsung_seraphine
+          kernel-branch: android-4.9-q
+          config: itzkaguya-perf_defconfig
+          arch: arm64
+          aosp-gcc: true
+          aosp-clang: true
+          aosp-clang-version: r416183b
+          ksu:  true
+          anykernel3: true
+          anykernel3-url: https://github.com/osm0sis/AnyKernel3
+          release: true
