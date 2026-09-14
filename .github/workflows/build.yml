@@ -1,15 +1,24 @@
 name: Build Kernel A10s
+
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - android-4.9-q
+
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
+      # 1. Checkout source (fork của bạn)
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
         with:
+          repository: kho447520-jpg/android_kernel_samsung_seraphine
+          ref: android-4.9-q
           fetch-depth: 0
 
+      # 2. Cài dependencies
       - name: Install Host Dependencies
         run: |
           sudo apt-get update
@@ -17,16 +26,22 @@ jobs:
             clang-11 lld-11 llvm-11 binutils-aarch64-linux-gnu \
             libelf-dev libncurses-dev
 
-      - name: Add KernelSU (v0.9.5 for non-GKI)
+      # 3. Thêm KernelSU v0.9.5 (bản cuối hỗ trợ non-GKI)
+      - name: Add KernelSU v0.9.5
         run: |
           curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s v0.9.5
           echo "CONFIG_KSU=y" >> arch/arm64/configs/itzkaguya-perf_defconfig
-          # Tắt stack protector strong vì clang-11 Ubuntu không hỗ trợ đúng cách
+          echo "CONFIG_KPROBES=y" >> arch/arm64/configs/itzkaguya-perf_defconfig
+          echo "CONFIG_HAVE_KPROBES=y" >> arch/arm64/configs/itzkaguya-perf_defconfig
+          echo "CONFIG_KPROBE_EVENTS=y" >> arch/arm64/configs/itzkaguya-perf_defconfig
+
+      # 4. Fix lỗi stack-protector của clang-11 Ubuntu
+      - name: Fix Stack Protector
+        run: |
           sed -i 's/^CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/' arch/arm64/configs/itzkaguya-perf_defconfig
           sed -i 's/^CONFIG_CC_STACKPROTECTOR=y/# CONFIG_CC_STACKPROTECTOR is not set/' arch/arm64/configs/itzkaguya-perf_defconfig
-          # Xóa dòng WLAN1=y thừa gây warning
-          sed -i '/^WLAN1=y/d' arch/arm64/configs/itzkaguya-perf_defconfig
 
+      # 5. Setup Clang 11
       - name: Setup Clang 11
         run: |
           mkdir -p toolchains/clang/bin
@@ -35,6 +50,67 @@ jobs:
           ln -s /usr/bin/llvm-ar-11 toolchains/clang/bin/llvm-ar
           ln -s /usr/bin/llvm-strip-11 toolchains/clang/bin/llvm-strip
           ln -s /usr/bin/llvm-objcopy-11 toolchains/clang/bin/llvm-objcopy
+          ln -s /usr/bin/llvm-nm-11 toolchains/clang/bin/llvm-nm
+
+      # 6. Tải GCC 4.9 prebuilt (dùng commit cũ vì Google đã xóa tag)
+      - name: Download ARM GCC Toolchain
+        run: |
+          mkdir -p toolchains/gcc
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 toolchains/gcc-tmp || true
+          if [ -d toolchains/gcc-tmp ]; then
+            cp -r toolchains/gcc-tmp/* toolchains/gcc/
+          fi
+          # Fallback dùng binutils của Ubuntu nếu clone fail
+          mkdir -p toolchains/gcc/bin
+          ln -sf /usr/bin/aarch64-linux-gnu-objdump toolchains/gcc/bin/aarch64-linux-android-objdump
+          ln -sf /usr/bin/aarch64-linux-gnu-ld toolchains/gcc/bin/aarch64-linux-android-ld
+          ln -sf /usr/bin/aarch64-linux-gnu-as toolchains/gcc/bin/aarch64-linux-android-as
+          ln -sf /usr/bin/aarch64-linux-gnu-ar toolchains/gcc/bin/aarch64-linux-android-ar
+          ln -sf /usr/bin/aarch64-linux-gnu-nm toolchains/gcc/bin/aarch64-linux-android-nm
+          ln -sf /usr/bin/aarch64-linux-gnu-ranlib toolchains/gcc/bin/aarch64-linux-android-ranlib
+          ln -sf /usr/bin/aarch64-linux-gnu-objcopy toolchains/gcc/bin/aarch64-linux-android-objcopy
+          ln -sf /usr/bin/aarch64-linux-gnu-strip toolchains/gcc/bin/aarch64-linux-android-strip
+
+      # 7. Set biến môi trường build
+      - name: Set Build Env
+        run: |
+          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "DEFCONFIG=itzkaguya-perf_defconfig" >> $GITHUB_ENV
+          echo "CC=$PWD/toolchains/clang/bin/clang" >> $GITHUB_ENV
+          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          echo "CROSS_COMPILE=$PWD/toolchains/gcc/bin/aarch64-linux-android-" >> $GITHUB_ENV
+          echo "PATH=$PWD/toolchains/clang/bin:$PWD/toolchains/gcc/bin:$PATH" >> $GITHUB_ENV
+
+      # 8. Build kernel
+      - name: Build Kernel
+        run: |
+          make -j$(nproc) O=out ARCH=arm64 \
+            CC="$PWD/toolchains/clang/bin/clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE="$PWD/toolchains/gcc/bin/aarch64-linux-android-" \
+            KCFLAGS="-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-const-variable -Wno-error" \
+            itzkaguya-perf_defconfig
+
+          # Đảm bảo CONFIG_KSU được bật sau khi gen .config
+          scripts/config --file out/.config -e KSU
+          scripts/config --file out/.config -e KPROBES
+
+          make -j$(nproc) O=out ARCH=arm64 \
+            CC="$PWD/toolchains/clang/bin/clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE="$PWD/toolchains/gcc/bin/aarch64-linux-android-" \
+            KCFLAGS="-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-const-variable -Wno-error"
+
+      # 9. Upload artifact
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-A10s-Haubai-V1-OneUI2
+          path: |
+            out/arch/arm64/boot/Image.gz-dtb
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/Image.gz
+          if-no-files-found: warn          ln -s /usr/bin/llvm-objcopy-11 toolchains/clang/bin/llvm-objcopy
           ln -s /usr/bin/llvm-nm-11 toolchains/clang/bin/llvm-nm
 
       - name: Download ARM GCC Toolchain
