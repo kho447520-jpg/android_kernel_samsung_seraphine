@@ -54,8 +54,6 @@ jobs:
           echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
           echo "CROSS_COMPILE=$PWD/toolchains/gcc/bin/aarch64-linux-android-" >> $GITHUB_ENV
           echo "PATH=$PWD/toolchains/clang/bin:$PWD/toolchains/gcc/bin:$PATH" >> $GITHUB_ENV
-          # QUAN TRỌNG: tắt warning -Wunused-but-set-variable
-          echo "KCFLAGS=-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-const-variable" >> $GITHUB_ENV
 
       - name: Check Kernel Directory Structure
         run: |
@@ -64,50 +62,21 @@ jobs:
 
       - name: Build Kernel
         run: |
-          make -j2 O=out ARCH=${{ env.ARCH }} \
-            CC=${{ env.CC }} \
-            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
-            CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            KCFLAGS="${{ env.KCFLAGS }}" \
-            ${{ env.DEFCONFIG }}
-          make -j2 O=out ARCH=${{ env.ARCH }} \
-            CC=${{ env.CC }} \
-            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
-            CROSS_COMPILE=${{ env.CROSS_COMPILE }} \
-            KCFLAGS="${{ env.KCFLAGS }}"
+          make -j2 O=out ARCH=arm64 \
+            CC="$PWD/toolchains/clang/bin/clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE="$PWD/toolchains/gcc/bin/aarch64-linux-android-" \
+            KCFLAGS="-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-const-variable -Wno-error" \
+            itzkaguya-perf_defconfig
+          make -j2 O=out ARCH=arm64 \
+            CC="$PWD/toolchains/clang/bin/clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE="$PWD/toolchains/gcc/bin/aarch64-linux-android-" \
+            KCFLAGS="-Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-const-variable -Wno-error"
 
       - name: Upload Kernel Image
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-A10s-Haubại-V1
+          name: kernel-A10s-Haubại-V1-oneui2
           path: out/arch/arm64/boot/Image.gz-dtb
-          if-no-files-found: warn          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 toolchains/gcc-tmp || true
-          if [ -d toolchains/gcc-tmp ]; then cp -r toolchains/gcc-tmp/* toolchains/gcc/ 2>/dev/null || true; fi
-          ln -sf /usr/bin/aarch64-linux-gnu-objdump toolchains/gcc/bin/aarch64-linux-android-objdump
-          ln -sf /usr/bin/aarch64-linux-gnu-ld toolchains/gcc/bin/aarch64-linux-android-ld
-          ln -sf /usr/bin/aarch64-linux-gnu-as toolchains/gcc/bin/aarch64-linux-android-as
-          ln -sf /usr/bin/aarch64-linux-gnu-ar toolchains/gcc/bin/aarch64-linux-android-ar
-          ln -sf /usr/bin/aarch64-linux-gnu-nm toolchains/gcc/bin/aarch64-linux-android-nm
-          ln -sf /usr/bin/aarch64-linux-gnu-ranlib toolchains/gcc/bin/aarch64-linux-android-ranlib
-          ln -sf /usr/bin/aarch64-linux-gnu-objcopy toolchains/gcc/bin/aarch64-linux-android-objcopy
-          ln -sf /usr/bin/aarch64-linux-gnu-strip toolchains/gcc/bin/aarch64-linux-android-strip
-
-      - name: Set Build Env
-        run: |
-          echo "ARCH=arm64" >> $GITHUB_ENV
-          echo "DEFCONFIG=itzkaguya-perf_defconfig" >> $GITHUB_ENV
-          echo "CC=$PWD/toolchains/clang/bin/clang" >> $GITHUB_ENV
-          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-          echo "CROSS_COMPILE=$PWD/toolchains/gcc/bin/aarch64-linux-android-" >> $GITHUB_ENV
-          echo "PATH=$PWD/toolchains/clang/bin:$PWD/toolchains/gcc/bin:$PATH" >> $GITHUB_ENV
-
-      - name: Build Kernel
-        run: |
-          make -j2 O=out ARCH=${{ env.ARCH }} CC=${{ env.CC }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} CROSS_COMPILE=${{ env.CROSS_COMPILE }} ${{ env.DEFCONFIG }}
-          make -j2 O=out ARCH=${{ env.ARCH }} CC=${{ env.CC }} CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} CROSS_COMPILE=${{ env.CROSS_COMPILE }}
-
-      - name: Upload Kernel Image
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-A10s-Haubai-V1
-          path: out/arch/arm64/boot/Image.gz-dtb
+          if-no-files-found: warn
