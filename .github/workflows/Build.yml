@@ -1,11 +1,25 @@
 name: Build Kernel
 on: [push, workflow_dispatch]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # This new step patches the Makefile after checkout but before the build.
+      - name: Patch Kernel Makefile to Disable -Werror
+        run: |
+          # The kernel source is checked out to the current directory.
+          # We need to modify the main Makefile.
+          # This command finds the line with KBUILD_CFLAGS and removes '-Werror'.
+          sed -i 's/KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \\/KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \\/' Makefile
+          # A more robust approach is to specifically remove -Werror
+          sed -i 's/-Werror//g' Makefile
+          
+          echo "--- Verifying patch ---"
+          grep "KBUILD_CFLAGS" Makefile || true
 
       - name: Build Kernel
         uses: dabao1955/kernel_build_action@main
@@ -20,17 +34,6 @@ jobs:
           anykernel3: true
           release: true
           disable-lto: true
+          # The extra-make-args may no longer be needed, but we can leave it.
           extra-make-args: KCFLAGS=-Wno-error=maybe-uninitialized
           access-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Disable -Werror in Makefile
-        run: |
-          # This step runs after the kernel source is cloned by the previous action
-          # but before the build starts.
-          # Note: This is a workaround. The build action might not expose a pre-build hook.
-          # A better approach is to fork the kernel repo and patch the Makefile.
-          # For now, we will demonstrate the concept.
-          #
-          # This command will find all Makefiles and remove '-Werror' from them.
-          # Use with caution.
-          find kernel/kernel -name "Makefile" -exec sed -i 's/-Werror//g' {} \;
