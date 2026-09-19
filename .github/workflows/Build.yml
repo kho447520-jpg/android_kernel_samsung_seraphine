@@ -24,5 +24,6 @@ jobs:
           release: true
           disable-lto: true
           extra-make-args: |
-            ["KCFLAGS=-Wno-error"]
+            KCFLAGS=-Wno-error=maybe-uninitialized
+            KCFLAGS+=-Wno-error
           access-token: ${{ secrets.GITHUB_TOKEN }}
