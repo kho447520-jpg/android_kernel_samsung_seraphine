@@ -22,4 +22,6 @@ jobs:
           android-version: 10
           anykernel3: true
           release: true
+          disable-lto: true
+          extra-make-args: 'KCFLAGS="-Wno-error=maybe-uninitialized -Wno-error"'
           access-token: ${{ secrets.GITHUB_TOKEN }}
