@@ -8,23 +8,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # This new step patches the Makefile after checkout but before the build.
-      - name: Patch Kernel Makefile to Disable -Werror
-        run: |
-          # The kernel source is checked out to the current directory.
-          # We need to modify the main Makefile.
-          # This command finds the line with KBUILD_CFLAGS and removes '-Werror'.
-          sed -i 's/KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \\/KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \\/' Makefile
-          # A more robust approach is to specifically remove -Werror
-          sed -i 's/-Werror//g' Makefile
-          
-          echo "--- Verifying patch ---"
-          grep "KBUILD_CFLAGS" Makefile || true
-
       - name: Build Kernel
         uses: dabao1955/kernel_build_action@main
         with:
-          kernel-url: https://github.com/kho447520-jpg/android_kernel_samsung_seraphine
+          # Point to your forked repository
+          kernel-url: https://github.com/YOUR_USERNAME/android_kernel_samsung_seraphine
           kernel-branch: android-4.9-q
           config: itzkaguya-perf_defconfig
           arch: arm64
@@ -34,6 +22,8 @@ jobs:
           anykernel3: true
           release: true
           disable-lto: true
-          # The extra-make-args may no longer be needed, but we can leave it.
+          # The extra-make-args are no longer necessary if the Makefile is patched
+          extra-make-args: KCFLAGS=-Wno-error=maybe-uninitialized
+          access-token: ${{ secrets.GITHUB_TOKEN }}          # The extra-make-args may no longer be needed, but we can leave it.
           extra-make-args: KCFLAGS=-Wno-error=maybe-uninitialized
           access-token: ${{ secrets.GITHUB_TOKEN }}
