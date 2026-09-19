@@ -18,9 +18,8 @@ jobs:
           config: itzkaguya-perf_defconfig
           arch: arm64
           aosp-gcc: true
-          aosp-clang: true
+          aosp-clang: false
           android-version: 10
-          aosp-clang-version: r487747c
           anykernel3: true
           release: true
           access-token: ${{ secrets.GITHUB_TOKEN }}
